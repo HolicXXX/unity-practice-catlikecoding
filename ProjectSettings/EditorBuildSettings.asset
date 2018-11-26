@@ -14,4 +14,13 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Performance.unity
     guid: a4b16b0bcbff9514181ec96e15c07ef7
+  - enabled: 1
+    path: Assets/Scenes/PersitingObject.unity
+    guid: c0077cbe4472d33449e525b62d38fd0f
+  - enabled: 1
+    path: Assets/Scenes/Levels/Level1.unity
+    guid: 7f287fc910d28964e94e0d4b1d45fb8d
+  - enabled: 1
+    path: Assets/Scenes/Levels/Level2.unity
+    guid: f8b8b9649bf638f4d96ab520c3f49163
   m_configObjects: {}

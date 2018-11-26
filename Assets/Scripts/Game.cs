@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace ObjectManagement
 {
@@ -12,6 +13,9 @@ namespace ObjectManagement
 
         [SerializeField]
         private KeyCode createKey = KeyCode.C;
+
+        [SerializeField]
+        private KeyCode destroyKey = KeyCode.X;
 
         [SerializeField]
         private KeyCode newGameKey = KeyCode.N;
@@ -25,35 +29,111 @@ namespace ObjectManagement
         [SerializeField]
         private PersistentStorage storage;
 
+        [SerializeField]
+        private int levelCount;
+
+        public float CreationSpeed { get; set; }
+
+        public float DestructionSpeed { get; set; }
+
         private readonly List<Shape> shapes = new List<Shape>();
 
-        private const int saveVersion = 1;
+        private const int saveVersion = 2;
+
+        private float creationProgress;
+
+        private float destructionProgress;
+
+        private int loadedLevelBuildIndex;
 
         private void Awake()
         {
-            
+
+        }
+
+        IEnumerator LoadLevel(int index)
+        {
+            enabled = false;
+            index += 3;
+            if(loadedLevelBuildIndex > 0)
+            {
+                yield return SceneManager.UnloadSceneAsync(loadedLevelBuildIndex);
+            }
+            yield return SceneManager.LoadSceneAsync(index, LoadSceneMode.Additive);
+            SceneManager.SetActiveScene(SceneManager.GetSceneByBuildIndex(index));
+            loadedLevelBuildIndex = index;
+            enabled = true;
         }
 
         // Use this for initialization
         void Start () {
-        
-	    }
-	
-	    // Update is called once per frame
-	    void Update () {
+            //Scene loadedScene = SceneManager.GetSceneByName("Level1");
+            //if (loadedScene.isLoaded)
+            //{
+            //    SceneManager.SetActiveScene(loadedScene);
+            //    return;
+            //}
+            for (int i = 0; i < SceneManager.sceneCount; ++i)
+            {
+                Scene loadedScene = SceneManager.GetSceneAt(i);
+                if (loadedScene.name.Contains("Level"))
+                {
+                    SceneManager.SetActiveScene(loadedScene);
+                    loadedLevelBuildIndex = loadedScene.buildIndex;
+                    return;
+                }
+            }
+            StartCoroutine(LoadLevel(1));
+        }
+
+        // Update is called once per frame
+        void Update () {
             if (Input.GetKeyDown(createKey))
             {
                 CreateShape();
-            }else if (Input.GetKeyDown(newGameKey))
+            }
+            else if (Input.GetKeyDown(newGameKey))
             {
                 BeginNewGame();
-            }else if(Input.GetKeyDown(saveKey))
+            }
+            else if (Input.GetKeyDown(saveKey))
             {
                 storage.Save(this, saveVersion);
-            }else if(Input.GetKeyDown(loadKey))
+            }
+            else if (Input.GetKeyDown(loadKey))
             {
                 BeginNewGame();
                 storage.Load(this);
+            }
+            else if (Input.GetKeyDown(destroyKey))
+            {
+                DestroyShape();
+            }
+            else
+            {
+                for(int i = 1; i <= levelCount; ++i)
+                {
+                    if(Input.GetKeyDown(KeyCode.Alpha0 + i))
+                    {
+                        BeginNewGame();
+                        StartCoroutine(LoadLevel(i));
+                        return;
+                    }
+                }
+            }
+
+            creationProgress += Time.deltaTime * CreationSpeed;
+            while(creationProgress >= 1f)
+            {
+                creationProgress -= 1f;
+                CreateShape();
+            }
+
+            destructionProgress += Time.deltaTime * DestructionSpeed;
+            while(destructionProgress >= 1f)
+            {
+                destructionProgress -= 1f;
+                DestroyShape();
             }
         }
 
@@ -70,15 +150,25 @@ namespace ObjectManagement
                 valueMin: 0.25f, valueMax: 1f,
                 alphaMin: 1f, alphaMax: 1f
             ));
-            tran.parent = transform;
             shapes.Add(instance);
+        }
+
+        void DestroyShape()
+        {
+            if(shapes.Count > 0)
+            {
+                int index = Random.Range(0, shapes.Count);
+                shapeFactory.Reclaim(shapes[index]);
+                shapes[index] = shapes[shapes.Count - 1];
+                shapes.RemoveAt(shapes.Count - 1);
+            }
         }
 
         void BeginNewGame()
         {
             shapes.ForEach(t =>
             {
-                Destroy(t.gameObject);
+                shapeFactory.Reclaim(t);
             });
             shapes.Clear();
         }
@@ -86,6 +176,7 @@ namespace ObjectManagement
         public override void Save(GameDataWriter writer)
         {
             writer.Write(shapes.Count);
+            writer.Write(loadedLevelBuildIndex - 3);
             for (int i = 0; i < shapes.Count; i++)
             {
                 writer.Write(shapes[i].ShapeId);
@@ -104,6 +195,7 @@ namespace ObjectManagement
             }
 
             int count = version > 0 ? reader.ReadInt() : -version;
+            StartCoroutine(LoadLevel(version < 2 ? 1 : reader.ReadInt()));
             var tran = transform;
             for (int i = 0; i < count; i++)
             {
