@@ -772,7 +772,10 @@ MonoBehaviour:
   saveKey: 115
   loadKey: 108
   storage: {fileID: 771854432}
-  levelCount: 2
+  levelCount: 4
+  resetOnLoad: 1
+  creationSpeedSlider: {fileID: 456787304}
+  destructionSpeedSlider: {fileID: 1877299835}
 --- !u!1 &1113571043
 GameObject:
   m_ObjectHideFlags: 0
@@ -1084,13 +1087,13 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 1496938679}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalRotation: {x: 0.17216256, y: -0.12854324, z: 0.02266564, w: 0.97638255}
+  m_LocalPosition: {x: 5, y: 8, z: -20}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 0
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 20, y: -15, z: 0}
 --- !u!1 &1533893630
 GameObject:
   m_ObjectHideFlags: 0

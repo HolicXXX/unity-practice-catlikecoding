@@ -6,6 +6,10 @@ namespace ObjectManagement
 {
     public class Shape : PersistableObject {
 
+        public Vector3 AngularVelocity { get; set; }
+
+        public Vector3 Velocity { get; set; }
+
         private int shapeId = int.MinValue;
         public int ShapeId
         {
@@ -62,12 +66,22 @@ namespace ObjectManagement
         {
             base.Save(writer);
             writer.Write(color);
+            writer.Write(AngularVelocity);
+            writer.Write(Velocity);
         }
 
         public override void Load(GameDataReader reader)
         {
             base.Load(reader);
             SetColor(reader.Version > 0 ? reader.ReadColor() : Color.white);
+            AngularVelocity = reader.Version >= 4 ? reader.ReadVector3() : Vector3.zero;
+            Velocity = reader.Version >= 4 ? reader.ReadVector3() : Vector3.zero;
+        }
+
+        public void GameUpdate()
+        {
+            transform.Rotate(AngularVelocity * Time.deltaTime);
+            transform.localPosition += Velocity * Time.deltaTime;
         }
     }
 }

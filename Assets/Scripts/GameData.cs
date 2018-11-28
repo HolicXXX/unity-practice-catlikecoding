@@ -44,6 +44,11 @@ namespace ObjectManagement
             writer.Write(color.b);
             writer.Write(color.a);
         }
+
+        public void Write(Random.State state)
+        {
+            writer.Write(JsonUtility.ToJson(state));
+        }
     }
 
     public class GameDataReader
@@ -95,6 +100,11 @@ namespace ObjectManagement
             color.b = reader.ReadSingle();
             color.a = reader.ReadSingle();
             return color;
+        }
+
+        public Random.State ReadRandomState()
+        {
+            return JsonUtility.FromJson<Random.State>(reader.ReadString());
         }
     }
 }

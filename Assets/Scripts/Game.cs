@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 namespace ObjectManagement
 {
@@ -32,19 +33,32 @@ namespace ObjectManagement
         [SerializeField]
         private int levelCount;
 
+        [SerializeField]
+        private bool resetOnLoad;
+
+        [SerializeField]
+        private Slider creationSpeedSlider;
+
+        [SerializeField]
+        private Slider destructionSpeedSlider;
+
+        public SpawnZone SpawnZoneofLevel { get; set; }
+
         public float CreationSpeed { get; set; }
 
         public float DestructionSpeed { get; set; }
 
         private readonly List<Shape> shapes = new List<Shape>();
 
-        private const int saveVersion = 2;
+        private const int saveVersion = 4;
 
         private float creationProgress;
 
         private float destructionProgress;
 
         private int loadedLevelBuildIndex;
+
+        Random.State mainRandomState;
 
         private void Awake()
         {
@@ -67,12 +81,7 @@ namespace ObjectManagement
 
         // Use this for initialization
         void Start () {
-            //Scene loadedScene = SceneManager.GetSceneByName("Level1");
-            //if (loadedScene.isLoaded)
-            //{
-            //    SceneManager.SetActiveScene(loadedScene);
-            //    return;
-            //}
+            mainRandomState = Random.state;
             for (int i = 0; i < SceneManager.sceneCount; ++i)
             {
                 Scene loadedScene = SceneManager.GetSceneAt(i);
@@ -83,6 +92,7 @@ namespace ObjectManagement
                     return;
                 }
             }
+            BeginNewGame();
             StartCoroutine(LoadLevel(1));
         }
 
@@ -95,6 +105,7 @@ namespace ObjectManagement
             else if (Input.GetKeyDown(newGameKey))
             {
                 BeginNewGame();
+                StartCoroutine(LoadLevel(loadedLevelBuildIndex - 3));
             }
             else if (Input.GetKeyDown(saveKey))
             {
@@ -121,7 +132,11 @@ namespace ObjectManagement
                     }
                 }
             }
+        }
 
+        private void FixedUpdate()
+        {
+            shapes.ForEach(s => s.GameUpdate());
             creationProgress += Time.deltaTime * CreationSpeed;
             while(creationProgress >= 1f)
             {
@@ -140,16 +155,7 @@ namespace ObjectManagement
         void CreateShape()
         {
             var instance = shapeFactory.GetRandom();
-            var tran = instance.transform;
-            tran.localPosition = Random.insideUnitSphere * 5f;
-            tran.localRotation = Random.rotation;
-            tran.localScale = Vector3.one * Random.Range(0.1f, 1f);
-            instance.SetColor(Random.ColorHSV(
-                hueMin: 0f, hueMax: 1f,
-                saturationMin: 0.5f, saturationMax: 1f,
-                valueMin: 0.25f, valueMax: 1f,
-                alphaMin: 1f, alphaMax: 1f
-            ));
+            GameLevel.Current.ConfigureSpawn(instance);
             shapes.Add(instance);
         }
 
@@ -166,6 +172,11 @@ namespace ObjectManagement
 
         void BeginNewGame()
         {
+            Random.state = mainRandomState;
+            int seed = Random.Range(0, int.MaxValue) ^ (int)Time.unscaledTime;
+            mainRandomState = Random.state;
+            Random.InitState(seed);
+            creationSpeedSlider.value = destructionSpeedSlider.value = CreationSpeed = DestructionSpeed = 0f;
             shapes.ForEach(t =>
             {
                 shapeFactory.Reclaim(t);
@@ -176,7 +187,13 @@ namespace ObjectManagement
         public override void Save(GameDataWriter writer)
         {
             writer.Write(shapes.Count);
+            writer.Write(Random.state);
+            writer.Write(CreationSpeed);
+            writer.Write(creationProgress);
+            writer.Write(DestructionSpeed);
+            writer.Write(destructionProgress);
             writer.Write(loadedLevelBuildIndex - 3);
+            GameLevel.Current.Save(writer);
             for (int i = 0; i < shapes.Count; i++)
             {
                 writer.Write(shapes[i].ShapeId);
@@ -194,8 +211,30 @@ namespace ObjectManagement
                 return;
             }
 
+            StartCoroutine(LoadGame(reader));
+        }
+
+        IEnumerator LoadGame(GameDataReader reader)
+        {
+            int version = reader.Version;
             int count = version > 0 ? reader.ReadInt() : -version;
-            StartCoroutine(LoadLevel(version < 2 ? 1 : reader.ReadInt()));
+            if (version >= 3)
+            {
+                Random.State state = reader.ReadRandomState();
+                if (resetOnLoad)
+                {
+                    Random.state = state;
+                }
+                creationSpeedSlider.value = CreationSpeed = reader.ReadFloat();
+                creationProgress = reader.ReadFloat();
+                destructionSpeedSlider.value = DestructionSpeed = reader.ReadFloat();
+                destructionProgress = reader.ReadFloat();
+            }
+            yield return LoadLevel(version < 2 ? 1 : reader.ReadInt());
+            if (version >= 3)
+            {
+                GameLevel.Current.Load(reader);
+            }
             var tran = transform;
             for (int i = 0; i < count; i++)
             {
