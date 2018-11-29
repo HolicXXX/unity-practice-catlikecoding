@@ -10,7 +10,7 @@ namespace ObjectManagement
     public class Game : PersistableObject {
 
         [SerializeField]
-        private ShapeFactory shapeFactory;
+        private ShapeFactory[] shapeFactorys;
 
         [SerializeField]
         private KeyCode createKey = KeyCode.C;
@@ -50,7 +50,7 @@ namespace ObjectManagement
 
         private readonly List<Shape> shapes = new List<Shape>();
 
-        private const int saveVersion = 4;
+        private const int saveVersion = 5;
 
         private float creationProgress;
 
@@ -62,7 +62,18 @@ namespace ObjectManagement
 
         private void Awake()
         {
+            
+        }
 
+        private void OnEnable()
+        {
+            if(shapeFactorys[0].FactoryId != 0)
+            {
+                for (int i = 0; i < shapeFactorys.Length; ++i)
+                {
+                    shapeFactorys[i].FactoryId = i;
+                }
+            }
         }
 
         IEnumerator LoadLevel(int index)
@@ -154,9 +165,7 @@ namespace ObjectManagement
 
         void CreateShape()
         {
-            var instance = shapeFactory.GetRandom();
-            GameLevel.Current.ConfigureSpawn(instance);
-            shapes.Add(instance);
+            shapes.Add(GameLevel.Current.SpawnShape());
         }
 
         void DestroyShape()
@@ -164,7 +173,7 @@ namespace ObjectManagement
             if(shapes.Count > 0)
             {
                 int index = Random.Range(0, shapes.Count);
-                shapeFactory.Reclaim(shapes[index]);
+                shapes[index].Recycle();
                 shapes[index] = shapes[shapes.Count - 1];
                 shapes.RemoveAt(shapes.Count - 1);
             }
@@ -177,10 +186,7 @@ namespace ObjectManagement
             mainRandomState = Random.state;
             Random.InitState(seed);
             creationSpeedSlider.value = destructionSpeedSlider.value = CreationSpeed = DestructionSpeed = 0f;
-            shapes.ForEach(t =>
-            {
-                shapeFactory.Reclaim(t);
-            });
+            shapes.ForEach(t => t.Recycle());
             shapes.Clear();
         }
 
@@ -196,6 +202,7 @@ namespace ObjectManagement
             GameLevel.Current.Save(writer);
             for (int i = 0; i < shapes.Count; i++)
             {
+                writer.Write(shapes[i].OriginFactory.FactoryId);
                 writer.Write(shapes[i].ShapeId);
                 writer.Write(shapes[i].MaterialId);
                 shapes[i].Save(writer);
@@ -238,9 +245,10 @@ namespace ObjectManagement
             var tran = transform;
             for (int i = 0; i < count; i++)
             {
+                int factoryId = version >= 5 ? reader.ReadInt() : 0;
                 int shapeId = version > 0 ? reader.ReadInt() : 0;
                 int matId = version > 0 ? reader.ReadInt() : 0;
-                Shape o = shapeFactory.Get(shapeId, matId);
+                Shape o = shapeFactorys[factoryId].Get(shapeId, matId);
                 o.transform.parent = tran;
                 o.Load(reader);
                 shapes.Add(o);

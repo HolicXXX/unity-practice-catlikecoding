@@ -208,6 +208,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   spawnConfig:
+    factories:
+    - {fileID: 11400000, guid: dc2fbdb9b33ed0e4681813d47c6abd88, type: 2}
     movementDirection: 1
     speed:
       min: 2
@@ -228,6 +230,7 @@ MonoBehaviour:
       value:
         min: 0
         max: 1
+    uniformColor: 0
   surfaceOnly: 0
 --- !u!4 &832415616
 Transform:

@@ -48,11 +48,11 @@ namespace ObjectManagement
             nextSequentialIndex = reader.ReadInt();
         }
 
-        public override void ConfigureSpawn(Shape shape)
+        public override Shape SpawnShape()
         {
             if (overrideConfig)
             {
-                base.ConfigureSpawn(shape);
+                return base.SpawnShape();
             }
             else
             {
@@ -69,7 +69,7 @@ namespace ObjectManagement
                 {
                     index = Random.Range(0, spawnZones.Length);
                 }
-                spawnZones[index].ConfigureSpawn(shape);
+                return spawnZones[index].SpawnShape();
             }
         }
     }

@@ -21,6 +21,28 @@ namespace ObjectManagement
 
         private Scene poolScene;
 
+        public int FactoryId
+        {
+            get
+            {
+                return factoryId;
+            }
+            set
+            {
+                if(factoryId == int.MinValue && value != int.MinValue)
+                {
+                    factoryId = value;
+                }
+                else
+                {
+                    Debug.Log("Not allowed to change factoryId.");
+                }
+            }
+        }
+
+        [System.NonSerialized]
+        int factoryId = int.MinValue;
+
         void CreatePools()
         {
             pools = new List<Shape>[prefabs.Length];
@@ -68,6 +90,7 @@ namespace ObjectManagement
                 else
                 {
                     ret = Instantiate(prefabs[shapeId]);
+                    ret.OriginFactory = this;
                     ret.ShapeId = shapeId;
                     SceneManager.MoveGameObjectToScene(ret.gameObject, poolScene);
                 }
@@ -75,6 +98,7 @@ namespace ObjectManagement
             else
             {
                 ret = Instantiate(prefabs[shapeId]);
+                ret.OriginFactory = this;
                 ret.ShapeId = shapeId;
             }
             ret.SetMaterial(materials[materialId], materialId);
@@ -88,7 +112,12 @@ namespace ObjectManagement
 
         public void Reclaim(Shape shapeToRecycle)
         {
-            if(recycle)
+            if (shapeToRecycle.OriginFactory != this)
+            {
+                Debug.LogError("Tried to reclaim shape with wrong factory.");
+                return;
+            }
+            if (recycle)
             {
                 if(pools == null)
                 {
