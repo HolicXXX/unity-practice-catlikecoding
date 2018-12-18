@@ -20,6 +20,7 @@ sampler2D _OcclusionMap;
 float _OcclusionStrength;
 sampler2D _EmissionMap;
 float3 _Emission;
+float _AlphaCutoff;
 
 struct VertexData {
 	float4 vertex : POSITION;
@@ -103,6 +104,14 @@ float3 GetAlbedo (Interpolators i) {
 	    albedo = lerp(albedo, albedo * details, GetDetailMask(i));
     #endif
 	return albedo;
+}
+
+float GetAlpha (Interpolators i) {
+	float alpha = _Tint.a;
+	#if !defined(_SMOOTHNESS_ALBEDO)
+		alpha *= tex2D(_MainTex, i.uv.xy).a;
+	#endif
+	return alpha;
 }
 
 float3 GetTangentSpaceNormal (Interpolators i) {
@@ -276,6 +285,11 @@ void InitializeFragmentNormal(inout Interpolators i) {
 }
 
 float4 MyFragmentProgram(Interpolators i) : SV_TARGET {
+    float alpha = GetAlpha(i);
+    #if defined(_RENDERING_CUTOUT)
+	    clip(alpha - _AlphaCutoff);
+    #endif
+
 	InitializeFragmentNormal(i);
 
 	/*float3 lightDir = _WorldSpaceLightPos0.xyz;//direct to light
@@ -295,6 +309,10 @@ float4 MyFragmentProgram(Interpolators i) : SV_TARGET {
 	float3 albedo = DiffuseAndSpecularFromMetallic(
 		GetAlbedo(i), GetMetallic(i), specularTint, oneMinusReflectivity
 	);
+    #if defined(_RENDERING_TRANSPARENT)
+		albedo *= alpha;
+        alpha = 1 - oneMinusReflectivity + alpha * oneMinusReflectivity;
+	#endif
 
 	/*float3 diffuse = albedo * lightColor * DotClamped(lightDir, i.normal);
 	float3 halfVector = normalize(lightDir + viewDir);
@@ -312,6 +330,9 @@ float4 MyFragmentProgram(Interpolators i) : SV_TARGET {
 	);//take care of everything
 
     color.rgb += GetEmission(i);
+    #if defined(_RENDERING_FADE) || defined(_RENDERING_TRANSPARENT)
+		color.a = alpha;
+	#endif
     return color;
 }
 

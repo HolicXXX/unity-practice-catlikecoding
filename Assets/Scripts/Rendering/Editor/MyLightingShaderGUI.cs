@@ -1,5 +1,6 @@
 ﻿using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Rendering
 {
@@ -10,9 +11,32 @@ namespace Rendering
             Uniform, Albedo, Metallic
         }
 
+        enum RenderingMode
+        {
+            Opaque, Cutout, Fade, Transparent
+        }
+
+        struct RenderingSetting
+        {
+            public RenderQueue queue;
+            public string renderType;
+            public BlendMode srcBlend, dstBlend;
+            public bool zWrite;
+
+            public static RenderingSetting[] modes =
+            {
+                new RenderingSetting() { queue = RenderQueue.Geometry, renderType = "", srcBlend = BlendMode.One, dstBlend = BlendMode.Zero, zWrite = true },
+                new RenderingSetting() { queue = RenderQueue.AlphaTest, renderType = "TransparentCutout", srcBlend = BlendMode.One, dstBlend = BlendMode.Zero, zWrite = true },
+                new RenderingSetting() { queue = RenderQueue.Transparent, renderType = "Transparent", srcBlend = BlendMode.SrcAlpha, dstBlend = BlendMode.OneMinusSrcAlpha, zWrite = false },
+                new RenderingSetting() { queue = RenderQueue.Transparent, renderType = "Transparent", srcBlend = BlendMode.One, dstBlend = BlendMode.OneMinusSrcAlpha, zWrite = false }
+            };
+        }
+
         Material target;
 		MaterialEditor editor;
 		MaterialProperty[] properties;
+
+        bool shouldShowAlphaCutoff;
 
         static GUIContent staticLabel = new GUIContent();
 
@@ -65,17 +89,85 @@ namespace Rendering
             this.target = editor.target as Material;
 			this.editor = editor;
 			this.properties = properties;
+            DoRenderingMode();
 			DoMain();
             DoSecondary();
 
         }
 
-		void DoMain()
+        void DoRenderingMode()
+        {
+            RenderingMode mode = RenderingMode.Opaque;
+            shouldShowAlphaCutoff = false;
+            if (IsKeywordEnabled("_RENDERING_CUTOUT"))
+            {
+                mode = RenderingMode.Cutout;
+                shouldShowAlphaCutoff = true;
+            }
+            else if (IsKeywordEnabled("_RENDERING_FADE"))
+            {
+                mode = RenderingMode.Fade;
+            }
+            else if (IsKeywordEnabled("_RENDERING_TRANSPARENT"))
+            {
+                mode = RenderingMode.Transparent;
+            }
+
+            EditorGUI.BeginChangeCheck();
+            mode = (RenderingMode)EditorGUILayout.EnumPopup(
+                MakeLabel("Rendering Mode"), mode
+            );
+            if (EditorGUI.EndChangeCheck())
+            {
+                RecordAction("Rendering Mode");
+                SetKeyword("_RENDERING_CUTOUT", mode == RenderingMode.Cutout);
+                SetKeyword("_RENDERING_FADE", mode == RenderingMode.Fade);
+                SetKeyword("_RENDERING_TRANSPARENT", mode == RenderingMode.Transparent);
+
+                RenderingSetting settings = RenderingSetting.modes[(int)mode];
+                foreach (Material m in editor.targets)
+                {
+                    m.renderQueue = (int)settings.queue;
+                    m.SetOverrideTag("RenderType", settings.renderType);
+                    m.SetInt("_SrcBlend", (int)settings.srcBlend);
+                    m.SetInt("_DstBlend", (int)settings.dstBlend);
+                    m.SetInt("_ZWrite", settings.zWrite ? 1 : 0);
+                }
+            }
+            if (mode == RenderingMode.Fade || mode == RenderingMode.Transparent)
+            {
+                DoSemitransparentShadows();
+            }
+        }
+
+        void DoSemitransparentShadows()
+        {
+            EditorGUI.BeginChangeCheck();
+            bool semitransparentShadows =
+                EditorGUILayout.Toggle(
+                    MakeLabel("Semitransp. Shadows", "Semitransparent Shadows"),
+                    IsKeywordEnabled("_SEMITRANSPARENT_SHADOWS")
+                );
+            if (EditorGUI.EndChangeCheck())
+            {
+                SetKeyword("_SEMITRANSPARENT_SHADOWS", semitransparentShadows);
+            }
+            if (!semitransparentShadows)
+            {
+                shouldShowAlphaCutoff = true;
+            }
+        }
+
+        void DoMain()
 		{
 			GUILayout.Label("Main Map", EditorStyles.boldLabel);
 
 			MaterialProperty mainTex = FindProperty("_MainTex");
 			editor.TexturePropertySingleLine(MakeLabel(mainTex, "Albedo (RGB)"), mainTex, FindProperty("_Tint"));
+            if (shouldShowAlphaCutoff)
+            {
+                DoAlphaCutoff();
+            }
             DoMetallic();
             DoSmoothness();
             DoNormals();
@@ -211,6 +303,14 @@ namespace Rendering
             {
                 SetKeyword("_DETAIL_NORMAL_MAP", map.textureValue);
             }
+        }
+
+        void DoAlphaCutoff()
+        {
+            MaterialProperty slider = FindProperty("_AlphaCutoff");
+            EditorGUI.indentLevel += 2;
+            editor.ShaderProperty(slider, MakeLabel(slider));
+            EditorGUI.indentLevel -= 2;
         }
 
         MaterialProperty FindProperty (string name) {
